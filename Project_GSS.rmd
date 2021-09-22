@@ -1,0 +1,155 @@
+---
+title: "Statistical inference with the GSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(tidyverse)
+```
+
+### Load data
+
+```{r load-data}
+load("gss.Rdata")
+```
+
+* * *
+
+## Part 1: Data
+
+The data we will being using for this project GSS (the General Social Survey) is gathered by NORC (National Opinion Research Center) from the University of Chicago since 1972. The GSS data is dedicated to record contemporary American society including social trends, constants in attitudes, behaviors, and attributes as well as social structures and functioning of society. It covers various aspects of American society such as national spending priorities, marijuana use, crime, intergroup relations, social and economic life, lifestyle, civil liberties, subjective well-being, and confidence in institutions etc. 
+
+The data **gss** has 57061 observations and 114 columns and it was gathered using random sampling, therefore it can be used to generalize the entire population of the country. However, we should be aware that bias also exists in the data since there are missing entries for certain years and certain columns as well as missing years since 1972. Because the survey is observational, therefore casual inferences can not be made from the data since it doesn't meet some of the requirements (bias). 
+
+* * *
+
+## Part 2: Research question
+In the following analysis, I'm about to look into how the proportion of U.S. white males' views on LGBTQ has changed between the year 2002 and 2012, here we define 'Not Wrong At All' a success, 'Always Wrong' a failure' (for clarity we only consider these two "extreme" opinions). 
+
+The variables I will be using are **race**, **sex**, **year**, **homosex**.
+```{r}
+summary(gss$race)
+```
+
+```{r}
+summary(gss$sex)
+```
+
+```{r}
+summary(gss$homosex)
+```
+
+```{r}
+summary(gss$year)
+```
+
+* * *
+
+## Part 3: Exploratory data analysis
+Filter our data:
+```{r}
+W_Male <- gss %>% 
+  filter(race == 'White', sex == 'Male', year == c('2002', '2012'), 
+         !is.na(homosex), stringr::str_detect(homosex, 'Always Wrong|Not Wrong At All'))
+```
+Summarize W_Male:
+```{r}
+W_Male %>% 
+  group_by(year) %>% 
+  summarise(count = n())
+```
+
+```{r}
+W_Male %>% 
+  filter(stringr::str_detect(homosex, 'Always Wrong|Not Wrong At All')) %>% 
+  group_by(homosex) %>% 
+  summarise(count = n()) %>% 
+  mutate(ratio = (count/361)*100)
+```
+
+* * *
+
+## Part 4: Inference
+
+### State hypothesis: 
+
+Null hypothesis: the proportions of U.S. white males' opinions on LGBTQ in 2002 is the same as the one in 2012: $$p_{2002} = p_{2012}$$ 
+
+Alternative hypothesis: the proportions of U.S. white males' opinions on LGBTQ in 2002 is not the same as the one in 2012: $$p_{2002} \ne p_{2012}$$ 
+
+### Check Conditions: 
+1. Independence:
+* within groups: the statistic data for the year 2002 and 2012 is 189 and 172, which is definitely less than 10% of the population respectively; 
+* between groups: it's pretty safe to say that the two groups are not paired, hence the independence also holds.
+
+2. Sample size/skew: according to the data, there are more than 10 successes and 10 failures. 
+
+### Inference: 
+```{r}
+inference(y = homosex, x = year, data = W_Male, statistic = 'proportion', type = 'ht',
+          method = 'theoretical', success = 'Not Wrong At All', null = 0, alternative = 'twosided')
+```
+\
+The p-value is less than $\alpha$ (0.05), therefore we can reject the null hypothesis. Hence we have convincing evidence to state that the proportions of U.S. white males' opinions on LGBTQ in 2002 is not the same as the one in 2012. 
+
+* * * 
+
+## Chi-Square test of independence
+
+The following is a quick analysis of using Chi-Square test of independence:
+
+* State hypothesis:
+
+  * Null hypothesis: Time(year) and US white males' view on LGBTQ are independent
+  * Alternative hypothesis: Time(year) and US white males' view on LGBTQ are dependent
+\
+\
+* Check independence: it's already stated above. 
+* Inference: 
+Filter data: 
+```{r}
+gss_W_Male <- gss %>% 
+  filter(race == 'White', sex == 'Male', !is.na(homosex), 
+         stringr::str_detect(homosex, 'Always Wrong|Not Wrong At All'))
+```
+Plot: 
+
+```{r}
+gss_W_Male %>% 
+  ggplot(aes(x = year, fill = homosex)) +
+  geom_bar() +
+  labs(title = "U.S. white males' views on LGBTQ 1972 - 2012",
+       x = 'Year',
+       y = 'Count and Ratio',
+       caption = paste0("Data Source: GSS"),
+       fill = 'Views')
+```
+\
+We can see that even though the proportion of "Always Wrong" has always been high, but it has decreased a lot since 1972 and its share almost reaches the same level as "Not Wrong At All" in 2012, 
+
+```{r}
+chisq.test(gss_W_Male$year, gss_W_Male$homosex)$expected
+```
+
+Degree of freedom:
+$$df = (R-1)*(C-1)$$  
+```{r}
+(24-1)*(2-1)
+```
+
+```{r}
+chisq.test(gss_W_Male$year, gss_W_Male$homosex)
+```
+
+We can see that our p value is almost 0, therefore we can reject the null hypothesis. Hence we have convincing evidence to state that U.S. white males' views and the time(year) are dependent. 
