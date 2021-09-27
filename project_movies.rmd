@@ -1,0 +1,221 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+date: 09/27/2021
+author: Daniel
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+library(GGally)
+library(grid)
+library(gridExtra)
+```
+
+### Load data
+
+```{r load-data}
+load("C:/Users/danie/OneDrive/Desktop/movies.RData")
+```
+
+* * *
+
+## Part 1: Data
+The dataset **movies** is a collection of data on movies produced and released before 2016, it was sampled randomly from Rotten Tomatoes and IMDB. **movies** composes 651 rows and 32 columns. Because of its decent sample size, the results can be generalized to other movies that are also produced and released before 2016. 
+\
+The data is observational, hence we can't conclude any casualty from it. In terms bias, there's no bias, but there exists some potential bias that may be caused by the missing values. 
+For example:
+
+```{r}
+sum(is.na(movies$studio))
+```
+Next, select some variables that may affect the popularity of a movie and then we'll clean the data so that we can use them for further analysis.
+```{r}
+str(movies)
+```
+From the list above, I will not choose variables like *thtr_rel_year* etc, *actor1* etc, *best_pic_nom* etc, *top200_box*, *imdb_url* and *rt_url* since I don't consider them as important factors to our analysis.
+
+Clean data with selected variables:
+```{r}
+movies_select <- na.omit(movies) %>% 
+  select(title_type, genre, runtime, mpaa_rating, imdb_rating, critics_score, critics_rating, audience_rating, audience_score)
+```
+
+```{r}
+head(movies_select)
+```
+
+* * *
+
+## Part 2: Research question
+What does it take to make popular movies? a.k.a. what affects the audience_score.
+
+* * *
+
+## Part 3: Exploratory data analysis
+```{r}
+boxplot(movies_select$audience_score)
+```
+```{r}
+hist(movies_select$audience_score)
+```
+
+We can see that the **audience_score** is left skewed with a median around 65.
+
+Discover relationships between **audience_score** and **runtime**: 
+```{r}
+ggplot(movies_select, aes(x = runtime, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(method = 'lm', se = FALSE)
+```
+\
+The relationship between **audience_score** and **runtime** is linear, but it needs more investigations later.
+
+**audience_score** and **critics_score**:
+```{r}
+ggplot(movies_select, aes(x = critics_score, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(method = 'lm', se = FALSE)
+```
+\
+The relationship between **audience_score** and **title_type** is obvious linear. 
+
+**imdb_rating** and **audience_score**:
+```{r}
+ggplot(movies_select, aes(x = imdb_rating, y = audience_score))+
+  geom_jitter()+
+  geom_smooth(method = 'lm', se = FALSE)
+```
+\
+**mpaa_rating** and **audience_score**:
+```{r}
+ggplot(movies_select, aes(x = mpaa_rating, y = audience_score))+
+  geom_jitter()
+```
+\
+We can see that the audience score is mostly concentrated on rated R movies.
+\
+Let's consider all the rest categorical variables together:
+```{r}
+c1<- ggplot(movies_select, aes(x = title_type)) + geom_bar() + coord_flip() + ggtitle('Movies by Title Type')
+c2<- ggplot(movies_select, aes(x = genre))+geom_bar()+labs(title = 'Movies by Genre') + coord_flip()
+c3<- ggplot(movies_select, aes(x = critics_rating)) + geom_bar() + ggtitle('Movies by Critics Rating')+ coord_flip()
+c4<- ggplot(movies_select, aes(x = audience_rating)) + geom_bar() + ggtitle('Movies by Audience Rating') + coord_flip()
+grid.arrange(c1, c2, c3, c4, ncol = 2)
+```
+\
+It's clear that the spread of critics rating and audience rating are reasonable, while the spread of title type and genre are highly concentrated in one category respectively. 
+
+Let's check the correlations between the following numerical variables: **runtime**, **imdb_rating** and **critics_score**
+```{r}
+ggpairs(movies_select, columns = c(3, 5, 6))
+```
+\
+We can see that **critics_score** and **imdb_rating** are highly correlated with a 0.76 correlation coefficient, hence these two are collinear, which means adding more than one of these variables to the model would not add much value to the model. Here I decide to drop **critics_score**. 
+
+```{r}
+movies_select %>% 
+  summarise(cor(runtime, audience_score), cor(imdb_rating, audience_score))
+
+```
+**runtime** has a low correlation coefficient, therefore I will drop it as well.
+
+* * *
+
+## Part 4: Modeling
+
+### Search for a model:
+```{r}
+m1 <- lm(audience_score ~ title_type + genre + mpaa_rating + critics_rating + audience_rating +imdb_rating, data = movies_select)
+summary(m1)$adj.r.squared
+```
+This model has a high correlation coefficient, hence we will continue using this model for the next step. 
+\
+\
+*Note that this $R^{2}_{adj}$ is larger than the one from the model with **runtime** (0.8832), this again confirmed that **runtime** does not contribute to our predicting model.*
+
+### Search for the best model possible via backward stepwise elimination:
+```{r}
+step(m1, direction = 'backward', trace = FALSE)
+```
+### Final model (Parsimonious Model): 
+```{r}
+m_final <- lm(audience_score ~ genre + audience_rating + imdb_rating, data = movies_select)
+```
+```{r}
+summary(m_final)$adj.r.squared
+```
+Final model confirmed based on the high coefficient above.
+
+### Interpretation of the model:
+
+* Intercept: -12.2663, is the estimated audience score considering all other variables being zero.
+
+* Genre: i.e. comedy with coefficient 1.6229 meaning Comedy gets on average an audience score 1.6229 higher than other genres if the rest variables are controlled. (Same for other genres)
+
+* Audience rating (Upright) with coefficient 20.5042 meaning the audience rating of *Upright* is on average 20.5042 higher than that of *Spilled* if all other variables hold constant.
+
+* Imdb rating with coefficient 9.7107 meaning with one unit increase of the imdb rating, the model predicts a 9.7107 increase in audience score.
+
+### Model disgnostics
+\
+
+#### Check linearity
+```{r}
+ggplot(m_final, aes(x = .fitted, y = .resid))+
+  geom_point()+
+  geom_hline(yintercept = 0, linetype = 'dashed')+
+  xlab('Fitted Values')+
+  ylab('Residuals')
+```
+\
+No fan shape in the residual plot, hence the residuals have constant variance.
+
+```{r}
+plot(m_final$residuals)
+```
+
+
+\
+The residuals are randomly scattered around 0, therefore the model has independent residuals.
+\ 
+\
+
+#### Check nearly normality
+```{r}
+hist(m_final$residuals)
+```
+\
+The distribution of residuals is nearly normal. 
+
+* or a normal probability plot of residuals:
+```{r}
+qqnorm(m_final$residuals)
+qqline(m_final$residuals, col = 5)
+```
+\
+The condition of normality is met confirmed.
+
+* * *
+
+## Part 5: Prediction (*Jurassic Park*)
+```{r}
+test_movie <- data.frame(genre = 'Action & Adventure', imdb_rating = 8.1, audience_rating = 'Upright')
+predict(m_final, test_movie)
+```
+* * *
+
+## Part 6: Conclusion
+Our model **m_final** can be used to predict the popularity of movies produced and released before 2016 with just three variables: **genre**, **imdb_rating** and **audience_rating**.
+\
+However, we have to admit that this model has flaws and the predicting power is limited because of the data we used is not large enough. To increase its predicting power, we will need much more data and a wider variety of factors. 
