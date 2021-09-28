@@ -213,6 +213,13 @@ The condition of normality is met confirmed.
 test_movie <- data.frame(genre = 'Action & Adventure', imdb_rating = 8.1, audience_rating = 'Upright')
 predict(m_final, test_movie)
 ```
+We can also construct a prediction interval around this prediction, which will provide a measure of uncertainty around the prediction.
+
+```{r}
+predict(m_final, test_movie, interval = 'prediction', level = 0.95)
+```
+Hence, the model predicts, with 95% confidence, that a movie with genre "Action & Adventure", 8.1 imdb rating and an "Upright" audience rating is expected to have an evaluation score between 73.20 and 100.59.
+
 * * *
 
 ## Part 6: Conclusion
