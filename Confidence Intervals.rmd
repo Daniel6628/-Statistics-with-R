@@ -20,6 +20,12 @@ We will explore the data using the `dplyr` package and visualize it
 using the `ggplot2` package for data visualization. The data can be found in the
 companion package for this course, `statsr`.
 
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "README_figs/README-"
+)
+```
+
 Let's load the packages.
 
 ```{r load-packages, message=FALSE}
