@@ -18,6 +18,12 @@ companion package for this course, `statsr`.
 
 Let's load the packages.
 
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  fig.path = "README_figs/README-"
+)
+```
+
 ```{r load-packages, message=FALSE}
 library(statsr)
 library(dplyr)
